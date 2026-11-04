@@ -42,7 +42,9 @@ The exact command flags remain dependent on the installed CLI/plugin versions. C
 
 ## Credits and License
 
-Created and maintained by [Gennaro Secondulfo](https://github.com/skeyzen).
+Created and maintained by skeyzen
+* [LinkedIn](https://www.linkedin.com/in/gennaro-secondulfo-dev/)
+* [GitHub](https://github.com/skeyzen)
 
 This project is licensed under the MIT License. The license applies to the
 original project code; third-party dependencies and assets remain subject to
