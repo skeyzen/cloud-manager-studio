@@ -1,0 +1,35 @@
+
+// dependencies and build output
+node_modules/
+dist/
+dist-electron/
+coverage/
+release/
+
+
+// Environment files
+.aio
+.env
+.env.*
+!.env.example
+
+
+// Log files
+logs/
+*.log
+npm-debug.log*
+
+// keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+// System files
+.DS_Store
+Thumbs.db
+
+
+// Plans and documentation
+plans/*
+z_*/*.md
