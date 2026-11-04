@@ -2,6 +2,8 @@
 
 Desktop toolbox suite for Adobe I/O workflows, built with Electron, React and TypeScript. It currently provides a Cloud Manager CLI toolbox and an App Builder Developer Console context selector.
 
+> **Note:** The user interface is currently available in Italian only. An English version will be provided as soon as possible.
+
 ## Requirements
 
 - Node.js 24+
