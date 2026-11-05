@@ -35,3 +35,37 @@ test('cancelling a tail settles the request even if the child never emits close'
   assert.equal(runner.isActive('tail-1'), false)
   assert.equal(runner.cancel('tail-1'), false)
 })
+
+test('a request can run a bundled Node CLI without a shell', async () => {
+  const child = new KillWithoutCloseChild()
+  let executable = ''
+  let shell: boolean | string | undefined
+  let runAsNode: string | undefined
+  const runner = new AioProcessRunner({
+    executable: 'aio.cmd',
+    shell: true,
+    spawnProcess: ((commandPath: string, _args: string[], options: import('node:child_process').SpawnOptions) => {
+      executable = commandPath
+      shell = options.shell
+      runAsNode = options.env?.ELECTRON_RUN_AS_NODE
+      return child as unknown as ChildProcessWithoutNullStreams
+    }) as unknown as typeof import('node:child_process').spawn
+  })
+
+  const command = runner.run({
+    requestId: 'bundled-cli-1',
+    executable: 'CloudManagerStudio.exe',
+    shell: false,
+    env: { ELECTRON_RUN_AS_NODE: '1' },
+    args: ['cli.js', '--version'],
+    cwd: '.',
+    timeoutMs: null
+  })
+  child.emit('close', 0)
+  const result = await command
+
+  assert.equal(executable, 'CloudManagerStudio.exe')
+  assert.equal(shell, false)
+  assert.equal(runAsNode, '1')
+  assert.equal(result.ok, true)
+})

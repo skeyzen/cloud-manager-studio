@@ -6,16 +6,18 @@ Desktop toolbox suite for Adobe I/O workflows, built with Electron, React and Ty
 
 ## Requirements
 
-- Node.js 24+
-- `aio` available on PATH
-- `@adobe/aio-cli-plugin-cloudmanager` for the Cloud Manager toolbox
-- `@adobe/aio-cli-plugin-console` for App Builder Organization, Project and Workspace selectors
+- Windows 10/11 x64 for the packaged portable application
 - An Adobe IMS session with the required product permissions
+- Node.js 24+ and npm to develop or build the application
+- `aio` plus the Cloud Manager and Console plugins on PATH to run the unpackaged development app
+
+The portable Windows executable bundles Electron's Node runtime, Adobe I/O CLI, the Console plugin and the Cloud Manager plugin. The app does not require system Node.js, npm or a global `aio` installation. If a bundled component cannot be loaded, the app offers predefined PowerShell checks and repair commands; each command is shown and requires confirmation in the terminal.
 
 ## Run
 
 ```powershell
-npm install
+npm ci --ignore-scripts --legacy-peer-deps
+node node_modules/electron/install.js
 npm run dev
 ```
 
@@ -25,6 +27,14 @@ For a production-like local run:
 npm run build
 npm start
 ```
+
+To create the portable Windows x64 executable:
+
+```powershell
+npm run build:win
+```
+
+The portable executable is written to `release/`. It does not install the app or require system Node.js, npm or a global `aio` installation.
 
 ## Behavior
 

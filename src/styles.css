@@ -138,6 +138,16 @@ button:disabled, input:disabled { cursor: default; }
 .login-icon { display: grid; place-items: center; width: 42px; height: 42px; margin: 30px auto 18px; color: #171d25; background: var(--amber); border: 2px solid #ffd783; box-shadow: inset 1px 1px rgba(255,255,255,.55); font-size: 24px; font-weight: 800; }
 .login-window h1 { margin-top: 10px; }
 .login-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.setup-window { width: min(680px, 100%); text-align: left; }
+.setup-window > .boot-brand, .setup-window > .login-icon, .setup-window > .eyebrow, .setup-window > h1, .setup-window > p { text-align: center; }
+.setup-window > p { min-height: 0; overflow-wrap: anywhere; }
+.setup-field { margin-top: 18px; }
+.setup-command { display: grid; gap: 7px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--command-border); background: var(--surface-deep); }
+.setup-command > span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.setup-command code { color: var(--blue-bright); font: 10px/1.5 Consolas, monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
+.setup-confirmation { margin-top: 10px !important; color: var(--muted) !important; font-size: 10px !important; }
+.setup-actions { margin-top: 14px; }
+.setup-feedback { margin-top: 12px !important; color: var(--blue-bright) !important; font-size: 11px !important; }
 
 .app-shell { height: 100vh; display: flex; flex-direction: column; background: var(--page); color: var(--text); }
 .boot-shell { min-height: 100vh; }

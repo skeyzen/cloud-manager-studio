@@ -14,9 +14,10 @@ import { createLocalAppLog } from './app-log'
 import { isOrganizationSelectLocked, needsCloudManagerContextEdit } from './cloud-manager-context'
 import { searchOutput, type SearchMatch } from './output-search'
 import { getWelcomeMessages } from './welcome-messages'
+import { setupActionOptions, type SetupActionId } from '../shared/setup-actions'
 import alienSvgSource from './assets/alien-svgrepo-com.svg?raw'
 
-type BootState = 'checking' | 'authenticated' | 'unauthenticated' | 'error'
+type BootState = 'checking' | 'authenticated' | 'unauthenticated' | 'setup-required' | 'error'
 type ToolboxId = 'cloudmanager' | 'appbuilder'
 type AppScreen = 'welcome' | ToolboxId
 type AppBuilderContext = { organizationId: string; projectId: string; workspaceId: string }
@@ -152,6 +153,9 @@ export function App() {
   const cloudContextEpochRef = useRef(0)
   const [loginBusy, setLoginBusy] = useState(false)
   const [logoutBusy, setLogoutBusy] = useState(false)
+  const [selectedSetupAction, setSelectedSetupAction] = useState<SetupActionId>('check-runtime')
+  const [setupBusy, setSetupBusy] = useState(false)
+  const [setupFeedback, setSetupFeedback] = useState('')
   const [context, setContext] = useState<AioConfig>({ organizationId: '', programId: '', environmentId: '', detail: '' })
   const [organizations, setOrganizations] = useState<AioOrganization[]>([])
   const [developerConsoleOrganizations, setDeveloperConsoleOrganizations] = useState<AioOrganization[]>([])
@@ -447,6 +451,12 @@ export function App() {
     try {
       const [status, config] = await Promise.all([window.aio.getStatus(), window.aio.getConfig()])
       if (!isCurrent()) return
+      if (status.setupRequired) {
+        appendLog('error', status.detail)
+        setBootState('setup-required')
+        setBootDetail(status.detail)
+        return
+      }
       const savedOrganizationAvailable = !config.organizationId || !status.organizations.length || status.organizations.some((organization) => organization.id === config.organizationId)
       const profileContext = savedOrganizationAvailable ? config : {
         organizationId: '',
@@ -503,6 +513,12 @@ export function App() {
     try {
       const status = await window.aio.getDeveloperConsoleStatus()
       if (!isCurrent()) return
+      if (status.setupRequired) {
+        appendLog('error', status.detail)
+        setBootState('setup-required')
+        setBootDetail(status.detail)
+        return
+      }
       setDeveloperConsoleOrganizations(status.organizations)
       if (!status.authenticated) {
         setBootState('unauthenticated')
@@ -546,6 +562,22 @@ export function App() {
     if (activeToolbox === 'cloudmanager') return boot()
     if (activeToolbox === 'appbuilder') return bootAppBuilder()
     return Promise.resolve()
+  }
+
+  const openPowerShellSetup = async () => {
+    setSetupBusy(true)
+    setSetupFeedback('')
+    try {
+      const result = await window.aio.openPowerShellSetup(selectedSetupAction)
+      setSetupFeedback(result.detail)
+      appendLog(result.ok ? 'info' : 'error', result.detail)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Impossibile aprire PowerShell.'
+      setSetupFeedback(detail)
+      appendLog('error', detail)
+    } finally {
+      setSetupBusy(false)
+    }
   }
 
   const activateToolbox = async (toolbox: ToolboxId) => {
@@ -879,7 +911,7 @@ export function App() {
     <div className="titlebar-meta">
       {activeToolbox === 'welcome' ? <span>{welcomeInfo.username}</span> : <>
         <span className={bootState === 'authenticated' ? 'online-dot' : 'status-led'} />
-        <span>{bootState === 'authenticated' ? 'IMS online' : bootState === 'checking' ? 'Connessione...' : 'Accesso richiesto'}</span>
+        <span>{bootState === 'authenticated' ? 'IMS online' : bootState === 'checking' ? 'Connessione...' : bootState === 'setup-required' ? 'Setup richiesta' : 'Accesso richiesto'}</span>
         <button className="small-button" type="button" onClick={() => void refreshActiveToolbox()} disabled={bootState === 'checking'} title="Controlla di nuovo la sessione">Ricarica</button>
         {bootState === 'authenticated' ? <button className="small-button danger-button" type="button" onClick={() => void logout()} disabled={logoutBusy} title="Slogga e accedi con un altro profilo">{logoutBusy ? 'Logout...' : 'Slogga'}</button> : null}
       </>}
@@ -900,6 +932,19 @@ export function App() {
 
   if (bootState === 'checking') {
     return <div className="app-shell boot-shell">{renderHeader()}<BootScreen detail={bootDetail} toolboxTitle={activeToolbox === 'appbuilder' ? 'Adobe I/O App Builder' : 'Adobe I/O Cloud Manager'} /><LogDock entries={logs} /></div>
+  }
+
+  if (bootState === 'setup-required') {
+    return <div className="app-shell boot-shell">{renderHeader()}<SetupScreen
+      detail={bootDetail}
+      toolboxTitle={activeToolbox === 'appbuilder' ? 'Adobe I/O App Builder' : 'Adobe I/O Cloud Manager'}
+      selectedActionId={selectedSetupAction}
+      busy={setupBusy}
+      feedback={setupFeedback}
+      onActionChange={setSelectedSetupAction}
+      onOpenPowerShell={() => void openPowerShellSetup()}
+      onRetry={() => void refreshActiveToolbox()}
+    /><LogDock entries={logs} /></div>
   }
 
   if (bootState === 'unauthenticated' || bootState === 'error') {
@@ -1367,6 +1412,47 @@ function LoginScreen({ detail, toolboxTitle, busy, logoutBusy, onLogin, onForceL
         </div>
         <button className="link-button" type="button" onClick={onRetry} disabled={busy || logoutBusy}>Controlla di nuovo</button>
         <span className="boot-caption">Il login apre il flusso Adobe IMS nel browser predefinito.</span>
+      </div>
+    </div>
+  )
+}
+
+function SetupScreen({ detail, toolboxTitle, selectedActionId, busy, feedback, onActionChange, onOpenPowerShell, onRetry }: {
+  detail: string
+  toolboxTitle: string
+  selectedActionId: SetupActionId
+  busy: boolean
+  feedback: string
+  onActionChange: (actionId: SetupActionId) => void
+  onOpenPowerShell: () => void
+  onRetry: () => void
+}) {
+  const selectedAction = setupActionOptions.find((action) => action.id === selectedActionId)
+
+  return (
+    <div className="boot-screen login-screen">
+      <div className="boot-window setup-window">
+        <div className="boot-brand"><span className="app-logo" aria-hidden="true" /><span>{toolboxTitle}</span></div>
+        <div className="login-icon">!</div>
+        <span className="eyebrow">PREREQUISITI CLI</span>
+        <h1>Componente non disponibile</h1>
+        <p>{detail}</p>
+        <label className="field-label setup-field">
+          <span>Azione di ripristino</span>
+          <select value={selectedActionId} onChange={(event) => onActionChange(event.target.value as SetupActionId)}>
+            {setupActionOptions.map((action) => <option value={action.id} key={action.id}>{action.label}</option>)}
+          </select>
+        </label>
+        <div className="setup-command" aria-live="polite">
+          <span>Comando selezionato</span>
+          <code>{selectedAction?.command ?? ''}</code>
+        </div>
+        <p className="setup-confirmation">PowerShell mostrerà il comando. Per eseguirlo, digita INSTALL nella finestra aperta.</p>
+        <div className="login-actions setup-actions">
+          <button className="button primary" type="button" onClick={onOpenPowerShell} disabled={busy}>{busy ? 'Apertura PowerShell...' : 'Apri PowerShell'}</button>
+          <button className="button secondary" type="button" onClick={onRetry} disabled={busy}>Controlla di nuovo</button>
+        </div>
+        {feedback ? <p className="setup-feedback" role="status">{feedback}</p> : null}
       </div>
     </div>
   )

@@ -1,13 +1,18 @@
 import type { CommandId, CommandParams } from '../shared/command-catalog'
+import type { SetupActionId } from '../shared/setup-actions'
 
 export interface AioStatus {
   authenticated: boolean
+  setupRequired: boolean
+  missingComponents: string[]
   detail: string
   organizations: AioOrganization[]
 }
 
 export interface DeveloperConsoleStatus {
   authenticated: boolean
+  setupRequired: boolean
+  missingComponents: string[]
   detail: string
   organizations: AioOrganization[]
 }
@@ -73,6 +78,7 @@ declare global {
       getWelcomeInfo: () => Promise<AppWelcomeInfo>
       getStatus: () => Promise<AioStatus>
       getDeveloperConsoleStatus: () => Promise<DeveloperConsoleStatus>
+      openPowerShellSetup: (actionId: SetupActionId) => Promise<{ ok: boolean; detail: string }>
       getConsoleProjects: (organizationId: string) => Promise<ConsoleListResult>
       getConsoleWorkspaces: (organizationId: string, projectId: string) => Promise<ConsoleListResult>
       login: () => Promise<{ ok: boolean; detail: string }>

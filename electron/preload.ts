@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('aio', {
   getWelcomeInfo: () => ipcRenderer.invoke('app:welcome-info'),
   getStatus: () => ipcRenderer.invoke('aio:status'),
   getDeveloperConsoleStatus: () => ipcRenderer.invoke('aio:developer-console-status'),
+  openPowerShellSetup: (actionId: import('../shared/setup-actions').SetupActionId) => ipcRenderer.invoke('setup:open-powershell', actionId),
   getConsoleProjects: (organizationId: string) => ipcRenderer.invoke('aio:developer-console-projects', organizationId),
   getConsoleWorkspaces: (organizationId: string, projectId: string) => ipcRenderer.invoke('aio:developer-console-workspaces', { organizationId, projectId }),
   login: () => ipcRenderer.invoke('aio:login'),

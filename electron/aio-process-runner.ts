@@ -12,6 +12,9 @@ export interface AioProcessRequest {
   requestId: string
   args: string[]
   cwd: string
+  executable?: string
+  shell?: boolean
+  env?: NodeJS.ProcessEnv
   stdinInput?: string
   timeoutMs?: number | null
   streamOutput?: boolean
@@ -42,11 +45,13 @@ export class AioProcessRunner {
   run(request: AioProcessRequest): Promise<AioProcessResult> {
     const timeoutMs = request.timeoutMs === undefined ? 45_000 : request.timeoutMs
     return new Promise((resolve) => {
-      const commandText = `${this.options.executable} ${request.args.join(' ')}`
+      const executable = request.executable ?? this.options.executable
+      const commandText = `${executable} ${request.args.join(' ')}`
       this.options.onLog?.('info', `Avvio comando: ${commandText}`)
-      const child = this.spawnProcess(this.options.executable, request.args, {
+      const child = this.spawnProcess(executable, request.args, {
         cwd: request.cwd,
-        shell: this.options.shell,
+        shell: request.shell ?? this.options.shell,
+        env: request.env ? { ...process.env, ...request.env } : undefined,
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe']
       })

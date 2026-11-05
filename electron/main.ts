@@ -1,8 +1,12 @@
 import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { commandDefinitions, type CommandId, type CommandParams } from '../shared/command-catalog'
+import { setupActionOptions } from '../shared/setup-actions'
+import { getBundledCliEntryPath, resolveAioCommand, type AioCommandTarget } from './aio-cli-invocation'
 import { AioProcessRunner, type AioProcessResult } from './aio-process-runner'
+import { buildPowerShellSetupScript, getMissingBundledComponents, isMissingCliDependency, type CliToolbox } from './setup-actions'
 
 type AppLogLevel = 'info' | 'warn' | 'error'
 
@@ -76,8 +80,37 @@ const aioRunner = new AioProcessRunner({
   }
 })
 
-function runAio(args: string[], timeoutMs: number | null = 45_000, stdinInput = '', requestId: string = crypto.randomUUID(), streamOutput = false): Promise<AioProcessResult> {
-  return aioRunner.run({ args, timeoutMs, stdinInput, requestId, streamOutput, cwd: app.getAppPath() })
+function runAio(args: string[], timeoutMs: number | null = 45_000, stdinInput = '', requestId: string = crypto.randomUUID(), streamOutput = false, target: AioCommandTarget = 'aio'): Promise<AioProcessResult> {
+  const appPath = app.getAppPath()
+  const invocation = resolveAioCommand({
+    target,
+    args,
+    isPackaged: app.isPackaged,
+    appPath,
+    electronExecutable: process.execPath,
+    platform: process.platform,
+    bundledEntryExists: existsSync(getBundledCliEntryPath(appPath, target))
+  })
+  return aioRunner.run({
+    ...invocation,
+    timeoutMs,
+    stdinInput,
+    requestId,
+    streamOutput,
+    cwd: app.isPackaged ? app.getPath('home') : appPath
+  })
+}
+
+function getSetupFailure(toolbox: CliToolbox, result: AioProcessResult) {
+  if (!isMissingCliDependency(result)) return { setupRequired: false, missingComponents: [] as string[] }
+  const missingComponents = getMissingBundledComponents(app.getAppPath(), app.isPackaged, toolbox)
+  const affected = missingComponents.length
+    ? missingComponents
+    : toolbox === 'cloudmanager'
+      ? ['Adobe I/O CLI o plugin Cloud Manager nel PATH']
+      : ['Adobe I/O CLI o plugin Console nel PATH']
+  const detail = sanitize(`Prerequisiti mancanti (${affected.join(', ')}). ${result.stderr || result.stdout || 'Verifica l’installazione della CLI.'}`)
+  return { setupRequired: true, missingComponents: affected, detail }
 }
 
 function parseJson<T>(value: string): T | undefined {
@@ -228,6 +261,29 @@ ipcMain.handle('app:welcome-info', () => ({
   username: process.env.USERNAME ?? process.env.USER ?? ''
 }))
 
+ipcMain.handle('setup:open-powershell', (_event, actionId: unknown) => {
+  if (process.platform !== 'win32') return { ok: false, detail: 'La riparazione PowerShell è disponibile solo su Windows.' }
+  const script = buildPowerShellSetupScript(actionId)
+  if (!script) return { ok: false, detail: 'Azione di riparazione non riconosciuta.' }
+  const encodedScript = Buffer.from(script, 'utf16le').toString('base64')
+  return new Promise<{ ok: boolean; detail: string }>((resolve) => {
+    const shell = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', encodedScript], {
+      detached: true,
+      windowsHide: false,
+      stdio: 'ignore'
+    })
+    shell.once('error', (error) => {
+      writeLog('error', `Avvio PowerShell non riuscito: ${error.message}`)
+      resolve({ ok: false, detail: `Impossibile aprire PowerShell: ${error.message}` })
+    })
+    shell.once('spawn', () => {
+      shell.unref()
+      writeLog('info', `Aperta la riparazione PowerShell: ${String(actionId)}.`)
+      resolve({ ok: true, detail: 'PowerShell aperto. Conferma il comando nella finestra per procedere.' })
+    })
+  })
+})
+
 ipcMain.on('app:set-native-icon', (event, pngDataUrl: unknown) => {
   if (typeof pngDataUrl !== 'string' || pngDataUrl.length > 1_500_000 || !pngDataUrl.startsWith('data:image/png;base64,')) return
   const icon = nativeImage.createFromDataURL(pngDataUrl)
@@ -241,28 +297,37 @@ ipcMain.on('app:set-native-icon', (event, pngDataUrl: unknown) => {
 
 ipcMain.handle('aio:status', async () => {
   writeLog('info', 'Controllo sessione Cloud Manager.')
-  const result = await runAio(['cloudmanager:org:list', '--json'], 30_000)
+  const aioRuntime = await runAio(['--version'], 15_000)
+  const aioSetupFailure = getSetupFailure('cloudmanager', aioRuntime)
+  if (aioSetupFailure.setupRequired) {
+    return { authenticated: false, organizations: [], ...aioSetupFailure }
+  }
+  const result = await runAio(['cloudmanager:org:list', '--json'], 30_000, '', crypto.randomUUID(), false, 'cloudmanager')
+  const setupFailure = getSetupFailure('cloudmanager', result)
   return {
     authenticated: result.ok,
     organizations: result.ok ? parseOrganizations(parseJson<unknown>(result.stdout)) : [],
-    detail: sanitize(result.ok ? 'Sessione Cloud Manager attiva.' : result.stderr || result.stdout || 'Sessione non disponibile.')
+    ...setupFailure,
+    detail: setupFailure.setupRequired ? setupFailure.detail : sanitize(result.ok ? 'Sessione Cloud Manager attiva.' : result.stderr || result.stdout || 'Sessione non disponibile.')
   }
 })
 
 ipcMain.handle('aio:developer-console-status', async () => {
   writeLog('info', 'Controllo sessione Developer Console per App Builder.')
-  const result = await runAio(['console', 'org', 'list', '--json'], 30_000)
+  const result = await runAio(['console', 'org', 'list', '--json'], 30_000, '', crypto.randomUUID(), false, 'console')
+  const setupFailure = getSetupFailure('appbuilder', result)
   return {
     authenticated: result.ok,
     organizations: result.ok ? parseOrganizations(parseJson<unknown>(result.stdout)) : [],
-    detail: sanitize(result.ok ? 'Sessione Developer Console attiva.' : result.stderr || result.stdout || 'Sessione Developer Console non disponibile.')
+    ...setupFailure,
+    detail: setupFailure.setupRequired ? setupFailure.detail : sanitize(result.ok ? 'Sessione Developer Console attiva.' : result.stderr || result.stdout || 'Sessione Developer Console non disponibile.')
   }
 })
 
 ipcMain.handle('aio:developer-console-projects', async (_event, organizationId: unknown) => {
   const normalizedId = typeof organizationId === 'string' ? organizationId.trim() : ''
   if (!isValidOrganizationId(normalizedId)) return { ok: false, resources: [], detail: 'Organization ID non valido.' }
-  const result = await runAio(['console', 'project', 'list', '--orgId', normalizedId, '--json'], 30_000)
+  const result = await runAio(['console', 'project', 'list', '--orgId', normalizedId, '--json'], 30_000, '', crypto.randomUUID(), false, 'console')
   return {
     ok: result.ok,
     resources: result.ok ? parseConsoleResources(parseJson<unknown>(result.stdout), ['projects', 'projectList', 'results', 'items', 'data'], ['id', 'projectId', 'project_id'], ['name', 'projectName', 'title']) : [],
@@ -277,7 +342,7 @@ ipcMain.handle('aio:developer-console-workspaces', async (_event, selection: unk
   if (!isValidOrganizationId(organizationId) || !/^[A-Za-z0-9._:-]{1,256}$/.test(projectId)) {
     return { ok: false, resources: [], detail: 'Organization ID o Project ID non valido.' }
   }
-  const result = await runAio(['console', 'workspace', 'list', '--orgId', organizationId, '--projectId', projectId, '--json'], 30_000)
+  const result = await runAio(['console', 'workspace', 'list', '--orgId', organizationId, '--projectId', projectId, '--json'], 30_000, '', crypto.randomUUID(), false, 'console')
   return {
     ok: result.ok,
     resources: result.ok ? parseConsoleResources(parseJson<unknown>(result.stdout), ['workspaces', 'workspaceList', 'results', 'items', 'data'], ['id', 'workspaceId', 'workspace_id'], ['name', 'workspaceName', 'title']) : [],
@@ -311,7 +376,7 @@ async function selectOrganization(organizationId: string) {
     return { ok: false, detail: 'Organization ID non valido. Sono ammessi lettere, numeri, . _ : - e un suffisso Adobe nel formato @AdobeOrg.' }
   }
   writeLog('info', `Selezione organization ${normalizedId}.`)
-  const organizationResult = await runAio(['cloudmanager:org:select', normalizedId])
+  const organizationResult = await runAio(['cloudmanager:org:select', normalizedId], 45_000, '', crypto.randomUUID(), false, 'cloudmanager')
   if (!organizationResult.ok) {
     const detail = sanitize(organizationResult.stderr || organizationResult.stdout || `aio cloudmanager:org:select è terminato con exit ${organizationResult.code ?? 'null'}.`).slice(0, 1000)
     writeLog('error', `cloudmanager:org:select fallito per Organization ID ${normalizedId}: ${detail}`)
@@ -385,7 +450,7 @@ ipcMain.handle('aio:command', async (_event, request: { id: CommandId; params: C
       const parsedInput = JSON.parse(request.stdinInput) as unknown
       if (!Array.isArray(parsedInput)) return { ok: false, code: 3, stdout: '', stderr: 'Il payload variabili deve essere un array JSON.' }
     }
-    const result = await runAio(args, definition.longRunning ? null : 45_000, request.stdinInput ?? '', request.requestId, definition.longRunning)
+    const result = await runAio(args, definition.longRunning ? null : 45_000, request.stdinInput ?? '', request.requestId, definition.longRunning, 'cloudmanager')
     return {
       ...result,
       stdout: sanitize(result.stdout),
