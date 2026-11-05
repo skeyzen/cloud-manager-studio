@@ -73,6 +73,9 @@
         }
       ],
       "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "portable": {
+      "splashImage": "build/CloudManagerStudio_Splash_Skeyzen.bmp"
     }
   }
 }

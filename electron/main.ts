@@ -236,7 +236,6 @@ function createWindow() {
   })
   window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     writeLog('error', `Renderer load failure ${errorCode} su ${validatedURL}: ${errorDescription}`)
-    showWindow()
   })
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     writeLog('error', `Preload fallito (${preloadPath}): ${error.message}`)
@@ -246,12 +245,12 @@ function createWindow() {
   })
   window.webContents.on('render-process-gone', (_event, details) => {
     writeLog('error', `Renderer terminato: ${details.reason}`)
-    showWindow()
+    loadErrorPage(new Error(`Renderer terminato: ${details.reason}`))
   })
   const loadPromise = devServerUrl
     ? window.loadURL(devServerUrl)
     : window.loadFile(path.join(__dirname, '../../dist/index.html'))
-  void loadPromise.then(showWindow).catch(loadErrorPage)
+  void loadPromise.catch(loadErrorPage)
 }
 
 ipcMain.handle('app:logs', () => appLogs)
