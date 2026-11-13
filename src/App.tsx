@@ -1083,7 +1083,7 @@ export function App() {
 
           <nav className="tabs" aria-label="Tipologia comando">
             {commandGroups.map((group) => (
-              <button ref={(element) => { if (element) commandTabRefs.current.set(group.id, element); else commandTabRefs.current.delete(group.id) }} className={activeGroup === group.id ? 'tab active' : 'tab'} type="button" key={group.id} onClick={() => { setActiveGroup(group.id); setMethodFilter('ALL'); setSelectedCommandId(null); setParams({}) }}>
+              <button ref={(element) => { if (element) commandTabRefs.current.set(group.id, element); else commandTabRefs.current.delete(group.id) }} className={activeGroup === group.id ? 'tab active' : 'tab'} aria-pressed={activeGroup === group.id} type="button" key={group.id} onClick={() => { setActiveGroup(group.id); setMethodFilter('ALL'); setSelectedCommandId(null); setParams({}) }}>
                 <span>{group.shortLabel}</span>
                 <small>{commandDefinitions.filter((definition) => definition.group === group.id).length}</small>
               </button>
@@ -1097,13 +1097,13 @@ export function App() {
             </label>
             <div className="method-switch" role="group" aria-label="Filtra per tipo chiamata">
               {(['ALL', 'GET', 'POST', 'PATCH', 'DELETE'] as MethodFilter[]).map((method) => (
-                <button className={methodFilter === method ? 'method active' : 'method'} type="button" key={method} onClick={() => { setMethodFilter(method); setSelectedCommandId(null); setParams({}) }}>{method === 'ALL' ? 'Tutte' : methodLabel(method)}</button>
+                <button className={methodFilter === method ? 'method active' : 'method'} aria-pressed={methodFilter === method} type="button" key={method} onClick={() => { setMethodFilter(method); setSelectedCommandId(null); setParams({}) }}>{method === 'ALL' ? 'Tutte' : methodLabel(method)}</button>
               ))}
             </div>
           </div>
 
           <div className="command-browser">
-            <div className="command-list" aria-label="Comandi disponibili">
+            <div className="command-list" role="region" tabIndex={0} aria-label="Comandi disponibili">
               {visibleCommands.map((definition) => (
                 <CommandRow key={definition.id} definition={definition} selected={selectedCommand?.id === definition.id} running={runningCommand === definition.id} onSelect={() => selectCommand(definition)} />
               ))}
@@ -1120,7 +1120,7 @@ export function App() {
               onChange={updateCommandParam}
               onRun={() => void runCommand(selectedCommand)}
               onStop={() => void stopRunningCommand()}
-            /> : <div className="command-details command-details-empty">Seleziona un comando dal catalogo.</div>}
+            /> : <div className="command-details command-details-empty" role="status">Seleziona un comando dal catalogo.</div>}
           </div>
         </section>
 
@@ -1168,13 +1168,13 @@ export function App() {
             <button type="button" className="search-close" onClick={() => toggleOutputSearch(false)} aria-label="Chiudi ricerca output" title="Chiudi ricerca">×</button>
           </div> : null}
           {outputSearchOpen && outputSearchError ? <div className="search-error-detail" role="alert">{outputSearchError}</div> : null}
-          <div className={response.status === 'running' ? 'response-status running' : response.status === 'success' ? 'response-status success' : response.status === 'error' ? 'response-status error' : response.status === 'cancelled' ? 'response-status cancelled' : 'response-status'}>
-            <span className="status-led" />
+          <div role="status" aria-live="polite" className={response.status === 'running' ? 'response-status running' : response.status === 'success' ? 'response-status success' : response.status === 'error' ? 'response-status error' : response.status === 'cancelled' ? 'response-status cancelled' : 'response-status'}>
+            <span className="status-led" aria-hidden="true" />
             {response.status === 'running' ? 'In esecuzione...' : response.status === 'success' ? 'Completato' : response.status === 'error' ? 'Errore' : response.status === 'cancelled' ? 'Interrotto' : 'In attesa'}
             {response.result?.code !== undefined && response.result?.code !== null ? <span className="exit-code">exit {response.result.code}</span> : null}
           </div>
-          <div className="response-body">
-            {response.status === 'running' ? <div className="response-loader"><span className="loader small" /><span>Attendo risposta da aio...</span></div> : null}
+          <div className="response-body" role="region" tabIndex={0} aria-label="Risultato del comando">
+            {response.status === 'running' ? <div className="response-loader"><span className="loader small" aria-hidden="true" /><span>Attendo risposta da aio...</span></div> : null}
             {response.note && response.status !== 'running' ? <p className="response-note">{response.note}</p> : null}
             {response.result?.command ? <div className="command-line">$ {response.result.command}</div> : null}
             {outputStdout ? <pre><OutputMatches text={outputStdout} matches={stdoutSearch.matches} offset={0} activeIndex={selectedOutputMatch} nodes={outputMatchNodes.current} /></pre> : null}
@@ -1185,7 +1185,7 @@ export function App() {
 
         {!contextReady ? <div className="context-wait-overlay" role="status" aria-live="polite">
           <div className="context-wait-content">
-            {contextLoading ? <span className="loader" /> : <span className="context-wait-icon" aria-hidden="true">!</span>}
+            {contextLoading ? <span className="loader" aria-hidden="true" /> : <span className="context-wait-icon" aria-hidden="true">!</span>}
             <strong>{contextLoading ? 'Caricamento del contesto' : 'Configurazione richiesta'}</strong>
             <span>{pendingContextMessage}</span>
             <small>Seleziona e salva Organization, Program ed Environment nell’intestazione.</small>
@@ -1272,7 +1272,7 @@ function CommandRow({ definition, selected, running, onSelect }: { definition: C
       <span className={`method-badge method-${definition.method.toLowerCase()}`}>{methodLabel(definition.method)}</span>
       <span className="command-row-copy"><strong>{definition.label}</strong><small>{definition.id}</small></span>
       {definition.risk === 'destructive' ? <span className="risk-mark" title="Richiede conferma">!</span> : null}
-      {running ? <span className="loader tiny" aria-label="Comando in esecuzione" /> : null}
+      {running ? <span className="loader tiny" role="img" aria-label="Comando in esecuzione" /> : null}
     </button>
   )
 }
@@ -1293,7 +1293,7 @@ function CommandDetails({ definition, params, context, running, canStop, stoppin
   const inheritedFields = definition.fields.filter((item) => item.context)
 
   return (
-    <section className="command-details" aria-label={`Dettagli comando ${definition.label}`}>
+    <section className="command-details" tabIndex={0} aria-label={`Dettagli comando ${definition.label}`}>
       <div className="detail-topline">
         <span className={`method-badge method-${definition.method.toLowerCase()}`}>{methodLabel(definition.method)}</span>
         <span className={`risk-label risk-${definition.risk}`}>{definition.risk === 'read' ? 'Lettura' : definition.risk === 'write' ? 'Modifica' : definition.risk === 'destructive' ? 'Distruttivo' : 'Stream'}</span>
@@ -1313,10 +1313,10 @@ function CommandDetails({ definition, params, context, running, canStop, stoppin
       {formFields.length ? <div className="command-form">
         {formFields.map((item) => <label className={`command-field field-${item.type ?? 'text'}`} key={item.key}>
           <span>{item.label}{item.required ? <i> richiesto</i> : null}</span>
-          {item.type === 'select' ? <select value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)}>
+          {item.type === 'select' ? <select aria-required={item.required || undefined} value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)}>
             <option value="">Seleziona...</option>
             {item.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select> : item.type === 'textarea' ? <textarea value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)} placeholder={item.placeholder} rows={7} spellCheck={false} /> : <input type={item.type === 'number' ? 'number' : 'text'} value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)} placeholder={item.placeholder} spellCheck={false} />}
+          </select> : item.type === 'textarea' ? <textarea aria-required={item.required || undefined} value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)} placeholder={item.placeholder} rows={7} spellCheck={false} /> : <input aria-required={item.required || undefined} type={item.type === 'number' ? 'number' : 'text'} value={params[item.key] ?? ''} onChange={(event) => onChange(item.key, event.target.value)} placeholder={item.placeholder} spellCheck={false} />}
         </label>)}
       </div> : <div className="no-command-fields">Non richiede parametri aggiuntivi.</div>}
 
@@ -1350,6 +1350,12 @@ function OutputMatches({ text, matches, offset, activeIndex, nodes }: { text: st
 
 function ShortcutsDialog({ toolbox, palette, onPaletteChange, onClose }: { toolbox: AppScreen; palette: PaletteId; onPaletteChange: (palette: PaletteId) => void; onClose: () => void }) {
   const isCloudManager = toolbox === 'cloudmanager'
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeButtonRef.current?.focus()
+    return () => previous?.focus()
+  }, [])
   return (
     <div className="shortcuts-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -1358,7 +1364,7 @@ function ShortcutsDialog({ toolbox, palette, onPaletteChange, onClose }: { toolb
             <span className="eyebrow">{toolbox === 'appbuilder' ? 'APP BUILDER' : isCloudManager ? 'CLOUD MANAGER CLI' : 'HOME'}</span>
             <h2 id="shortcuts-title">{isCloudManager ? 'Scorciatoie da tastiera' : 'Informazioni toolbox'}</h2>
           </div>
-          <button type="button" className="search-close" onClick={onClose} aria-label="Chiudi guida scorciatoie">×</button>
+          <button ref={closeButtonRef} type="button" className="search-close" onClick={onClose} aria-label="Chiudi guida scorciatoie">×</button>
         </div>
         <div className="palette-setting">
           <div className={`palette-swatch palette-swatch-${palette}`} aria-hidden="true" />
@@ -1388,9 +1394,9 @@ function BootScreen({ detail, toolboxTitle }: { detail: string; toolboxTitle: st
     <div className="boot-screen">
       <div className="boot-window">
         <div className="boot-brand"><span className="app-logo" aria-hidden="true" /><span>{toolboxTitle}</span></div>
-        <div className="loader" aria-label="Caricamento" />
+        <div className="loader" aria-hidden="true" />
         <h1>Connessione alla CLI</h1>
-        <p>{detail}</p>
+        <p role="status" aria-live="polite">{detail}</p>
         <span className="boot-caption">Controllo login e contesto locale</span>
       </div>
     </div>
@@ -1407,8 +1413,8 @@ function LoginScreen({ detail, toolboxTitle, busy, logoutBusy, onLogin, onForceL
         <h1>Sessione non disponibile</h1>
         <p>{detail}</p>
         <div className="login-actions">
-          <button className="button primary login-button" type="button" onClick={onLogin} disabled={busy || logoutBusy}>{busy ? <><span className="loader tiny" /> Attendo browser...</> : 'Login con aio'}</button>
-          <button className="button secondary" type="button" onClick={onForceLogout} disabled={busy || logoutBusy}>{logoutBusy ? <><span className="loader tiny" /> Logout...</> : 'Forza logout'}</button>
+          <button className="button primary login-button" type="button" onClick={onLogin} disabled={busy || logoutBusy}>{busy ? <><span className="loader tiny" aria-hidden="true" /> Attendo browser...</> : 'Login con aio'}</button>
+          <button className="button secondary" type="button" onClick={onForceLogout} disabled={busy || logoutBusy}>{logoutBusy ? <><span className="loader tiny" aria-hidden="true" /> Logout...</> : 'Forza logout'}</button>
         </div>
         <button className="link-button" type="button" onClick={onRetry} disabled={busy || logoutBusy}>Controlla di nuovo</button>
         <span className="boot-caption">Il login apre il flusso Adobe IMS nel browser predefinito.</span>
@@ -1508,7 +1514,7 @@ function LogDock({ entries }: { entries: AppLog[] }) {
         <button className={followLogs ? 'log-follow active' : 'log-follow'} type="button" onClick={() => setFollowLogs((current) => !current)} aria-label={followLogs ? 'Disattiva segui log' : 'Attiva segui log'} aria-pressed={followLogs} title={followLogs ? 'Segui i nuovi log' : 'Segui log disattivato'}>↓</button>
         <button className="log-toggle" type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? 'Abbassa log' : 'Riapri log'} title={expanded ? 'Abbassa log' : 'Riapri log'}>{expanded ? 'v' : 'L'}</button>
       </div>
-      {expanded ? <div className="log-list" ref={logListRef}>
+      {expanded ? <div className="log-list" ref={logListRef} role="log" tabIndex={0} aria-label="Voci del log applicativo">
         {entries.length ? entries.map((entry) => <div className={`log-entry log-${entry.level}`} key={entry.id}><time>{entry.timestamp.slice(11, 19)}</time><strong>{entry.level.toUpperCase()}</strong><span>{entry.message}</span></div>) : <div className="log-empty">Nessun evento registrato.</div>}
       </div> : null}
     </section>
